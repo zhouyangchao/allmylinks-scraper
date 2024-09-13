@@ -14,6 +14,8 @@ func main() {
 		log.Fatal("Please provide a username or full URL as an argument")
 	}
 
+	aml := allmylinks.NewAllMyLinks("")
+
 	input := os.Args[1]
 	var username, url string
 
@@ -23,7 +25,7 @@ func main() {
 		username = input
 	}
 
-	userInfo, err := allmylinks.ScrapeUserInfo(username, url)
+	userInfo, err := aml.ScrapeUserInfo(username, url)
 	if err != nil {
 		log.Fatalf("Error scraping user info: %v", err)
 	}

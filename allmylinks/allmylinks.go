@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,6 +12,10 @@ import (
 
 	"golang.org/x/net/html"
 )
+
+type AllMyLinks struct {
+	ProxyURL string
+}
 
 type UserInfo struct {
 	Username     string    `json:"Username" bson:"Username"`
@@ -33,12 +38,16 @@ type Link struct {
 	ConnectedStatus string `json:"ConnectedStatus" bson:"ConnectedStatus"`
 }
 
-func ScrapeUserInfo(username string, url string) (*UserInfo, error) {
+func NewAllMyLinks(proxyURL string) *AllMyLinks {
+	return &AllMyLinks{ProxyURL: proxyURL}
+}
+
+func (a *AllMyLinks) ScrapeUserInfo(username string, url string) (*UserInfo, error) {
 	if username != "" {
 		url = fmt.Sprintf("https://allmylinks.com/%s", username)
 	}
 
-	body, err := fetchHTMLDocument(url)
+	body, err := a.fetchHTMLDocument(url)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +61,7 @@ func ScrapeUserInfo(username string, url string) (*UserInfo, error) {
 	userInfo := &UserInfo{Username: username}
 	parseHTML(doc, userInfo)
 
-	err = getProfileViews(doc, userInfo)
+	err = a.getProfileViews(doc, userInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +72,18 @@ func ScrapeUserInfo(username string, url string) (*UserInfo, error) {
 	return userInfo, nil
 }
 
-func fetchHTMLDocument(url string) (io.ReadCloser, error) {
+func (a *AllMyLinks) fetchHTMLDocument(_url string) (io.ReadCloser, error) {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
+
+	if a.ProxyURL != "" {
+		proxyURL, err := url.Parse(a.ProxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid proxy URL: %w", err)
+		}
+		client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+	}
+
+	req, err := http.NewRequest("GET", _url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -218,13 +236,13 @@ func parseLink(n *html.Node) *Link {
 	return nil
 }
 
-func getProfileViews(doc *html.Node, userInfo *UserInfo) error {
+func (a *AllMyLinks) getProfileViews(doc *html.Node, userInfo *UserInfo) error {
 	profileViewsURL := findProfileViewsURL(doc)
 	if profileViewsURL == "" {
 		return nil
 	}
 
-	body, err := fetchHTMLDocument(profileViewsURL)
+	body, err := a.fetchHTMLDocument(profileViewsURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch profile views: %w", err)
 	}
