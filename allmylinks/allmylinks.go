@@ -1,6 +1,7 @@
 package allmylinks
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,28 +19,72 @@ type AllMyLinks struct {
 }
 
 type UserInfo struct {
-	Username     string    `json:"Username" bson:"Username"`
-	AvatarURL    string    `json:"AvatarURL" bson:"AvatarURL"`
-	DisplayName  string    `json:"DisplayName" bson:"DisplayName"`
-	Birthday     string    `json:"Birthday" bson:"Birthday"`
-	Bio          string    `json:"Bio" bson:"Bio"`
-	Content      string    `json:"Content" bson:"Content"`
-	Location     string    `json:"Location" bson:"Location"`
-	ProfileViews string    `json:"ProfileViews" bson:"ProfileViews"`
-	LastOnline   time.Time `json:"LastOnline" bson:"LastOnline"`
-	QRCodeURL    string    `json:"QRCodeURL" bson:"QRCodeURL"`
-	Links        []Link    `json:"Links" bson:"Links"`
+	Username     string     `json:"Username" bson:"Username"`
+	AvatarURL    string     `json:"AvatarURL" bson:"AvatarURL"`
+	DisplayName  string     `json:"DisplayName" bson:"DisplayName"`
+	Birthday     *string    `json:"Birthday,omitempty" bson:"Birthday,omitempty"`
+	Bio          *string    `json:"Bio,omitempty" bson:"Bio,omitempty"`
+	Content      *string    `json:"Content,omitempty" bson:"Content,omitempty"`
+	Location     *string    `json:"Location,omitempty" bson:"Location,omitempty"`
+	ProfileViews *string    `json:"ProfileViews,omitempty" bson:"ProfileViews,omitempty"`
+	LastOnline   *time.Time `json:"LastOnline,omitempty" bson:"LastOnline,omitempty"`
+	QRCodeURL    string     `json:"QRCodeURL" bson:"QRCodeURL"`
+	Links        []Link     `json:"Links,omitempty" bson:"Links,omitempty"`
 }
 
 type Link struct {
-	Title           string `json:"Title" bson:"Title"`
-	URL             string `json:"URL" bson:"URL"`
-	URLText         string `json:"URLText" bson:"URLText"`
-	ConnectedStatus string `json:"ConnectedStatus" bson:"ConnectedStatus"`
+	Title           string  `json:"Title" bson:"Title"`
+	URL             string  `json:"URL" bson:"URL"`
+	URLText         *string `json:"URLText,omitempty" bson:"URLText,omitempty"`
+	ConnectedStatus *string `json:"ConnectedStatus,omitempty" bson:"ConnectedStatus,omitempty"`
 }
 
 func NewAllMyLinks(proxyURL string) *AllMyLinks {
 	return &AllMyLinks{ProxyURL: proxyURL}
+}
+
+func (l *Link) String() string {
+	buffer := bytes.NewBufferString("")
+	buffer.WriteString(fmt.Sprintf("- %s - %s", l.Title, l.URL))
+	if l.URLText != nil {
+		buffer.WriteString(fmt.Sprintf(" (%s)", *l.URLText))
+	}
+	if l.ConnectedStatus != nil {
+		buffer.WriteString(fmt.Sprintf(" [%s]", *l.ConnectedStatus))
+	}
+	buffer.WriteString("\n")
+	return buffer.String()
+}
+
+func (u *UserInfo) String() string {
+	buffer := bytes.NewBufferString("")
+	buffer.WriteString(fmt.Sprintf("Username: %s\n", u.Username))
+	buffer.WriteString(fmt.Sprintf("AvatarURL: %s\n", u.AvatarURL))
+	buffer.WriteString(fmt.Sprintf("DisplayName: %s\n", u.DisplayName))
+	if u.Birthday != nil {
+		buffer.WriteString(fmt.Sprintf("Birthday: %s\n", *u.Birthday))
+	}
+	if u.Bio != nil {
+		buffer.WriteString(fmt.Sprintf("Bio: %s\n", *u.Bio))
+	}
+	if u.Content != nil {
+		buffer.WriteString(fmt.Sprintf("Content: %s\n", *u.Content))
+	}
+	if u.Location != nil {
+		buffer.WriteString(fmt.Sprintf("Location: %s\n", *u.Location))
+	}
+	if u.ProfileViews != nil {
+		buffer.WriteString(fmt.Sprintf("ProfileViews: %s\n", *u.ProfileViews))
+	}
+	if u.LastOnline != nil {
+		buffer.WriteString(fmt.Sprintf("LastOnline: %s\n", u.LastOnline.Format("2006-01-02 15:04:05")))
+	}
+	buffer.WriteString(fmt.Sprintf("QRCodeURL: %s\n", u.QRCodeURL))
+	buffer.WriteString("\nLinks:\n")
+	for _, link := range u.Links {
+		buffer.WriteString(link.String())
+	}
+	return buffer.String()
 }
 
 func (a *AllMyLinks) ScrapeUserInfo(username string, url string) (*UserInfo, error) {
@@ -116,16 +161,20 @@ func parseHTML(n *html.Node, userInfo *UserInfo) {
 			} else if hasClass(n, "last_online") {
 				timestamp, err := strconv.ParseInt(getAttr(n, "data-x-timestamp"), 10, 64)
 				if err == nil {
-					userInfo.LastOnline = time.Unix(timestamp, 0)
+					lastOnline := time.Unix(timestamp, 0)
+					userInfo.LastOnline = &lastOnline
 				}
 			}
 		case "div":
 			if hasClass(n, "about-section__birthday") {
-				userInfo.Birthday = getTextContent(n)
+				birthday := getTextContent(n)
+				userInfo.Birthday = &birthday
 			} else if hasClass(n, "about-section__location") {
-				userInfo.Location = getAttr(n, "title")
+				location := getAttr(n, "title")
+				userInfo.Location = &location
 			} else if hasClass(n, "about-section__content") {
-				userInfo.Content = getTextContent(n)
+				content := getTextContent(n)
+				userInfo.Content = &content
 			} else if hasClass(n, "simple-text") {
 				link := parseLink(n)
 				if link != nil {
@@ -134,7 +183,8 @@ func parseHTML(n *html.Node, userInfo *UserInfo) {
 			}
 		case "p":
 			if hasClass(n, "profile-bio") {
-				userInfo.Bio = getTextContent(n)
+				bio := getTextContent(n)
+				userInfo.Bio = &bio
 			}
 		case "a":
 			if hasClass(n, "btn", "btn-link", "btn-qr") {
@@ -218,6 +268,9 @@ func parseLink(n *html.Node) *Link {
 			if url == "" {
 				continue // Skip links without a valid URL
 			}
+			if url == "javascript: void(0);" {
+				url = "N/A"
+			}
 			var title, text, connectedStatus string
 			for gc := c.FirstChild; gc != nil; gc = gc.NextSibling {
 				if gc.Type == html.ElementNode && gc.Data == "span" {
@@ -230,7 +283,7 @@ func parseLink(n *html.Node) *Link {
 					}
 				}
 			}
-			return &Link{Title: title, URL: url, URLText: text, ConnectedStatus: connectedStatus}
+			return &Link{Title: title, URL: url, URLText: &text, ConnectedStatus: &connectedStatus}
 		}
 	}
 	return nil
@@ -252,7 +305,8 @@ func (a *AllMyLinks) getProfileViews(doc *html.Node, userInfo *UserInfo) error {
 	if err != nil {
 		return fmt.Errorf("failed to read profile views: %w", err)
 	}
-	userInfo.ProfileViews = strings.TrimSpace(string(profileViewsBytes))
+	profileViews := strings.TrimSpace(string(profileViewsBytes))
+	userInfo.ProfileViews = &profileViews
 
 	return nil
 }
