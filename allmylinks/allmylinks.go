@@ -90,6 +90,7 @@ func (u *UserInfo) String() string {
 func (a *AllMyLinks) ScrapeUserInfo(username string, url string) (*UserInfo, error) {
 	if username != "" {
 		url = fmt.Sprintf("https://allmylinks.com/%s", username)
+		username = strings.Split(username, "allmylinks.com/")[1]
 	}
 
 	body, err := a.fetchHTMLDocument(url)
