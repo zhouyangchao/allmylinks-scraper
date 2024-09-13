@@ -90,7 +90,10 @@ func (u *UserInfo) String() string {
 func (a *AllMyLinks) ScrapeUserInfo(username string, url string) (*UserInfo, error) {
 	if username != "" {
 		url = fmt.Sprintf("https://allmylinks.com/%s", username)
-		username = strings.Split(username, "allmylinks.com/")[1]
+	} else if strings.Contains(url, "https://allmylinks.com/") {
+		username = strings.Split(url, "https://allmylinks.com/")[1]
+	} else {
+		return nil, fmt.Errorf("invalid URL: %s", url)
 	}
 
 	body, err := a.fetchHTMLDocument(url)
