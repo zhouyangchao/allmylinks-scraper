@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"strings"
 
@@ -11,33 +10,20 @@ import (
 )
 
 func main() {
-	// 检查是否提供了命令行参数
 	if len(os.Args) < 2 {
 		log.Fatal("Please provide a username or full URL as an argument")
 	}
 
 	input := os.Args[1]
-	var username string
+	var username, url string
 
-	// 判断输入是URL还是用户名
-	if strings.HasPrefix(input, "https://") || strings.HasPrefix(input, "http://") {
-		// 如果是URL，从中提取用户名
-		parsedURL, err := url.Parse(input)
-		if err != nil {
-			log.Fatalf("Invalid URL: %v", err)
-		}
-		parts := strings.Split(parsedURL.Path, "/")
-		if len(parts) > 1 {
-			username = parts[len(parts)-1]
-		} else {
-			log.Fatal("Invalid URL format")
-		}
+	if strings.HasPrefix(input, "https://") {
+		url = input
 	} else {
-		// 如果不是URL，直接使用输入作为用户名
 		username = input
 	}
 
-	userInfo, err := allmylinks.ScrapeUserInfo(username)
+	userInfo, err := allmylinks.ScrapeUserInfo(username, url)
 	if err != nil {
 		log.Fatalf("Error scraping user info: %v", err)
 	}

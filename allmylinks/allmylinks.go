@@ -33,8 +33,10 @@ type Link struct {
 	ConnectedStatus string `json:"ConnectedStatus" bson:"ConnectedStatus"`
 }
 
-func ScrapeUserInfo(username string) (*UserInfo, error) {
-	url := fmt.Sprintf("https://allmylinks.com/%s", username)
+func ScrapeUserInfo(username string, url string) (*UserInfo, error) {
+	if username != "" {
+		url = fmt.Sprintf("https://allmylinks.com/%s", username)
+	}
 
 	body, err := fetchHTMLDocument(url)
 	if err != nil {
