@@ -14,6 +14,9 @@ import (
 	"golang.org/x/net/html"
 )
 
+const baseURL = "https://allmylinks.com"
+const baseURL2 = "https://allmylinks.com/"
+
 type AllMyLinks struct {
 	ProxyURL string
 }
@@ -88,15 +91,21 @@ func (u *UserInfo) String() string {
 }
 
 func (a *AllMyLinks) ScrapeUserInfo(username string, url string) (*UserInfo, error) {
-	if username != "" {
-		url = fmt.Sprintf("https://allmylinks.com/%s", username)
-	} else {
+	if url != "" {
 		url = strings.ToLower(url)
-		if strings.Contains(url, "https://allmylinks.com/") {
-			username = strings.Split(url, "https://allmylinks.com/")[1]
+		if !strings.HasPrefix(url, baseURL) || url == baseURL || url == baseURL2 {
+			if username != "" {
+				url = fmt.Sprintf("%s/%s", baseURL, username)
+			} else {
+				return nil, fmt.Errorf("invalid URL")
+			}
 		} else {
-			return nil, fmt.Errorf("invalid URL: %s", url)
+			username = strings.TrimPrefix(url, baseURL2)
 		}
+	} else if username != "" {
+		url = fmt.Sprintf("%s/%s", baseURL, username)
+	} else {
+		return nil, fmt.Errorf("invalid URL or username")
 	}
 
 	body, err := a.fetchHTMLDocument(url)
@@ -328,7 +337,7 @@ func findProfileViewsURL(doc *html.Node) string {
 				re := regexp.MustCompile(`/profile/views\?id=(\d+)`)
 				matches := re.FindStringSubmatch(content)
 				if len(matches) > 1 {
-					profileViewsURL = "https://allmylinks.com" + matches[0]
+					profileViewsURL = baseURL + matches[0]
 					return
 				}
 			}
